@@ -3,7 +3,7 @@
   color-scheme: light;
   scroll-padding-top: 48px;
   --paper-width: 820px;
-  --accent: #962e46;
+  --accent: #81253c;
 }
 body {
   margin: 0;
@@ -15,8 +15,23 @@ body {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #fff;
-  border-bottom: 1px solid #dfdfe3;
+  background: rgba(255, 255, 255, .96);
+  border-bottom: 1px solid rgba(34, 30, 36, .13);
+  box-shadow: 0 2px 8px rgba(29, 26, 32, .06);
+}
+@supports ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
+  .toolbar {
+    background: rgba(255, 255, 255, .78);
+    -webkit-backdrop-filter: blur(10px) saturate(115%);
+    backdrop-filter: blur(10px) saturate(115%);
+  }
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .toolbar {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 .toolbar-inner {
   display: flex;
@@ -49,16 +64,19 @@ body {
 }
 #page-links a {
   width: clamp(40px, 11vw, 46px);
-  color: #61616d;
+  color: #3e3b44;
   font-variant-numeric: tabular-nums;
 }
 #page-links a[aria-current="page"] {
   color: var(--accent);
+  background: rgba(150, 46, 70, .10);
   box-shadow: inset 0 -2px var(--accent);
 }
 #toggle-all {
-  padding-inline: 8px;
+  padding-inline: 10px;
   border: 0;
+  border-left: 1px solid rgba(34, 30, 36, .14);
+  border-radius: 0;
   background: transparent;
   color: var(--accent);
   cursor: pointer;
