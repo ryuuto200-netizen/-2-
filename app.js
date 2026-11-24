@@ -11,12 +11,28 @@ const openIds = new Set(Array.isArray(saved.open) ? saved.open : []);
 const pages = [];
 const answers = new Map();
 let activePage = 0;
+let saveTimer;
 
 function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = undefined;
   try {
     localStorage.setItem(storageKey, JSON.stringify({ open: [...openIds], page: activePage }));
   } catch {}
 }
+
+function schedulePersist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 80);
+}
+
+// Keep the most recent answer state when Safari backgrounds or closes the page.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && saveTimer !== undefined) persist();
+});
+window.addEventListener('pagehide', () => {
+  if (saveTimer !== undefined) persist();
+});
 
 function position(node, [x, y, width, height]) {
   Object.assign(node.style, {
@@ -28,21 +44,19 @@ function position(node, [x, y, width, height]) {
 function showAnswer(answer) {
   const { field, buttons, marks } = answer;
   const revealed = openIds.has(field.id);
-  buttons.forEach((button, index) => {
+  buttons.forEach(button => {
     button.classList.toggle('revealed', revealed);
     button.setAttribute('aria-pressed', String(revealed));
     button.setAttribute('aria-label', revealed
       ? '答え「' + field.value + '」を隠す'
       : field.context + ' の答えを表示');
-    if (field.kind === 'write') {
-      button.textContent = revealed ? answer.values[index] : '';
-    }
   });
   marks.forEach(mark => { mark.hidden = !revealed; });
 }
 
 function updateToggle() {
-  toggleAll.textContent = openIds.size === answers.size ? 'すべて隠す' : 'すべて表示';
+  const label = openIds.size === answers.size ? 'すべて隠す' : 'すべて表示';
+  if (toggleAll.textContent !== label) toggleAll.textContent = label;
 }
 
 function flip(id) {
@@ -50,7 +64,7 @@ function flip(id) {
   else openIds.add(id);
   showAnswer(answers.get(id));
   updateToggle();
-  persist();
+  schedulePersist();
 }
 
 function buildPage(data, index) {
@@ -78,8 +92,13 @@ function buildPage(data, index) {
       button.dataset.answer = field.id;
       position(button, box);
       if (field.kind === 'write') {
-        const ems = Array.from(values[part]).reduce((sum, c) => sum + (/[ -~]/.test(c) ? .59 : 1), 0);
+        const value = values[part];
+        const ems = Array.from(value).reduce((sum, c) => sum + (/[ -~]/.test(c) ? .59 : 1), 0);
         button.style.fontSize = Math.min(10.5, box[3] * .9, (box[2] - .5) / ems) / 595.28 * 100 + 'cqw';
+        const text = document.createElement('span');
+        text.className = 'answer-text';
+        text.textContent = value;
+        button.append(text);
       }
       fields.append(button);
       return button;
@@ -91,7 +110,7 @@ function buildPage(data, index) {
       fields.append(mark);
       return mark;
     });
-    const answer = { field, buttons, marks, values };
+    const answer = { field, buttons, marks };
     answers.set(field.id, answer);
     showAnswer(answer);
   }
@@ -119,7 +138,7 @@ function trackPage() {
   if (buttonBox.left < navBox.left || buttonBox.right > navBox.right) {
     pageLinks.scrollLeft += buttonBox.left - navBox.left - (navBox.width - buttonBox.width) / 2;
   }
-  persist();
+  schedulePersist();
 }
 
 let scrollFrame = 0;
@@ -156,7 +175,7 @@ toggleAll.addEventListener('click', () => {
     showAnswer(answer);
   }
   updateToggle();
-  persist();
+  schedulePersist();
 });
 error.querySelector('button').addEventListener('click', () => location.reload());
 
