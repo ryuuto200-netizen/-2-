@@ -1,11 +1,23 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f7f6f2"><title>政経赤シート｜政治・経済 2学期末</title><link rel="icon" href="sheet.svg"><link rel="stylesheet" href="style.css"></head>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff">
+  <title>政経赤シート｜政治・経済 2学期末</title>
+  <link rel="icon" href="sheet.svg">
+  <link rel="stylesheet" href="style.css?v=2">
+  <script src="app.js?v=2" defer></script>
+</head>
 <body>
-<header class="mast"><div class="brand"><img src="sheet.svg" width="36" height="36" alt=""><strong>政経<span>赤シート</span></strong></div><div class="course">政治・経済 <i></i> 2学期末</div></header>
-<div class="layout"><aside id="sidebar"><div class="side-title"><small>CONTENTS</small><h2>プリント目次</h2><button id="closeNav" aria-label="目次を閉じる">×</button></div><nav id="contents" aria-label="プリント目次"></nav></aside>
-<button id="shade" aria-label="目次を閉じる" hidden></button>
-<main><section class="head"><div class="sectionline"><span id="chap"></span><span id="folio"></span><button id="openNav" aria-expanded="false" aria-controls="sidebar">☰　目次</button></div><h1 id="title">日本銀行と通貨制度</h1><div class="sub"><p><i class="sample"></i>赤い欄をタップして答えを確認</p><span id="progress" role="status"></span></div></section>
-<section class="viewer" aria-label="プリント学習"><div class="toolbar"><div class="pager"><button id="prev" aria-label="前のページ">‹</button><b id="position">01</b><span>/ 17</span><button id="next" aria-label="次のページ">›</button></div><div class="actions"><div class="zoom"><button id="minus" aria-label="縮小">−</button><button id="fit" aria-label="ページ幅に合わせる" title="ページ幅に合わせる">100%</button><button id="plus" aria-label="拡大">＋</button></div><button id="toggleAll">すべて表示</button></div></div>
-<div id="scroller" tabindex="0" aria-label="プリント表示領域"><div id="paper"><img id="pageimg" alt=""><div id="fields"></div></div></div></section>
-<div class="bottom"><span id="paperlabel"></span><button id="bottomNext">次のページ　→</button></div>
-</main></div><div id="error" role="alert" hidden>プリントを読み込めませんでした。<button onclick="location.reload()">再読み込み</button></div><script src="app.js" defer></script></body></html>
+  <header class="toolbar">
+    <div class="toolbar-inner">
+      <nav id="page-links" aria-label="ページ番号"></nav>
+      <button id="toggle-all" type="button" disabled>すべて表示</button>
+    </div>
+  </header>
+  <main id="pages" aria-label="政治・経済 2学期末"></main>
+  <p id="error" role="alert" hidden>プリントを読み込めませんでした。<button type="button">再読み込み</button></p>
+  <noscript>赤シートを使うにはJavaScriptを有効にしてください。</noscript>
+</body>
+</html>

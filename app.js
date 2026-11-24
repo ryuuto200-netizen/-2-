@@ -1,115 +1,175 @@
 'use strict';
-const el = id => document.getElementById(id);
-const groups = [['金融',1,1],['財政と租税',2,11],['為替相場',12,13],['経済学史',14,15],['日本経済史',16,17]];
+
+const documentPages = document.getElementById('pages');
+const pageLinks = document.getElementById('page-links');
+const toggleAll = document.getElementById('toggle-all');
+const error = document.getElementById('error');
 const storageKey = 'seikei-redsheet-v1';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch {}
 const openIds = new Set(Array.isArray(saved.open) ? saved.open : []);
-const zoomSteps = [100,125,150,200,250,300];
-let zoom = zoomSteps.includes(saved.zoom) ? saved.zoom : 100;
-let num = 1, pages;
-const pad = n => String(n).padStart(2,'0');
+const pages = [];
+const answers = new Map();
+let activePage = 0;
+
 function persist() {
-  try { localStorage.setItem(storageKey,JSON.stringify({open:[...openIds],page:num,zoom})); } catch {}
+  try {
+    localStorage.setItem(storageKey, JSON.stringify({ open: [...openIds], page: activePage }));
+  } catch {}
 }
-function menu(open) {
-  document.body.classList.toggle('nav-open',open);
-  el('shade').hidden = !open;
-  el('openNav').setAttribute('aria-expanded',String(open));
-  if(open) el('closeNav').focus();
-  else if(document.activeElement.closest('aside')) el('openNav').focus();
+
+function position(node, [x, y, width, height]) {
+  Object.assign(node.style, {
+    left: x / 595.28 * 100 + '%', top: y / 841.89 * 100 + '%',
+    width: width / 595.28 * 100 + '%', height: height / 841.89 * 100 + '%',
+  });
 }
-function makeIndex() {
-  groups.forEach(([name,start,end])=>{
-    const h=document.createElement('h3'); h.className='group'; h.textContent=name; el('contents').append(h);
-    for(let i=start;i<=end;i++){
-      const button=document.createElement('button'); button.className='navrow'; button.dataset.page=i;
-      const number=document.createElement('em'); number.textContent=pad(i);
-      button.append(number,document.createTextNode(pages[i-1].title));
-      button.onclick=()=>{menu(false);navigate(i);}; el('contents').append(button);
+
+function showAnswer(answer) {
+  const { field, buttons, marks } = answer;
+  const revealed = openIds.has(field.id);
+  buttons.forEach((button, index) => {
+    button.classList.toggle('revealed', revealed);
+    button.setAttribute('aria-pressed', String(revealed));
+    button.setAttribute('aria-label', revealed
+      ? '答え「' + field.value + '」を隠す'
+      : field.context + ' の答えを表示');
+    if (field.kind === 'write') {
+      button.textContent = revealed ? answer.values[index] : '';
     }
   });
+  marks.forEach(mark => { mark.hidden = !revealed; });
 }
-function place(node,[x,y,w,h]) {
-  Object.assign(node.style,{left:x/595.28*100+'%',top:y/841.89*100+'%',width:w/595.28*100+'%',height:h/841.89*100+'%'});
+
+function updateToggle() {
+  toggleAll.textContent = openIds.size === answers.size ? 'すべて隠す' : 'すべて表示';
 }
-function paintFields(focusId,part=0) {
-  const fields=pages[num-1].fields;
-  const frag=document.createDocumentFragment();
-  fields.forEach((f,index)=>{
-    const revealed=openIds.has(f.id);
-    f.boxes.forEach((box,j)=>{
-      const button=document.createElement('button');
-      button.className='field '+f.kind+(revealed?' revealed':'');
-      button.dataset.id=f.id; button.dataset.part=j;
-      button.setAttribute('aria-label',revealed?('答え「'+f.value+'」を隠す'):('解答欄 '+(index+1)+' の答えを表示'));
-      button.setAttribute('aria-pressed',String(revealed));
-      place(button,box);
-      if(f.kind==='write' && revealed){
-        const value=f.id==='12-20'?['高','強'][j]:f.value;
-        button.textContent=value;
-        const ems=Array.from(value).reduce((n,c)=>n+(/[ -~]/.test(c)?.59:1),0);
-        button.style.fontSize=(Math.min(10.5,box[3]*.9,(box[2]-.5)/ems)/595.28*100)+'cqw';
+
+function flip(id) {
+  if (openIds.has(id)) openIds.delete(id);
+  else openIds.add(id);
+  showAnswer(answers.get(id));
+  updateToggle();
+  persist();
+}
+
+function buildPage(data, index) {
+  const n = index + 1;
+  const paper = document.createElement('section');
+  paper.className = 'paper';
+  paper.id = 'p' + n;
+  paper.setAttribute('aria-label', data.label + ' ' + data.title);
+  const image = document.createElement('img');
+  image.alt = data.label + ' ' + data.title + 'の紙面';
+  image.width = 595;
+  image.height = 842;
+  image.loading = n === 1 ? 'eager' : 'lazy';
+  image.decoding = 'async';
+  image.src = 'pages/' + String(n).padStart(2, '0') + '.svg';
+
+  const fields = document.createElement('div');
+  fields.className = 'fields';
+  for (const field of data.fields) {
+    const values = field.id === '12-20' ? ['高', '強'] : field.boxes.map(() => field.value);
+    const buttons = field.boxes.map((box, part) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'field ' + field.kind;
+      button.dataset.answer = field.id;
+      position(button, box);
+      if (field.kind === 'write') {
+        const ems = Array.from(values[part]).reduce((sum, c) => sum + (/[ -~]/.test(c) ? .59 : 1), 0);
+        button.style.fontSize = Math.min(10.5, box[3] * .9, (box[2] - .5) / ems) / 595.28 * 100 + 'cqw';
       }
-      frag.append(button);
+      fields.append(button);
+      return button;
     });
-    if(revealed && f.kind==='choice') f.marks.forEach(box=>{
-      const ring=document.createElement('span');ring.className='mark';place(ring,box);frag.append(ring);
+    const marks = field.marks.map(box => {
+      const mark = document.createElement('span');
+      mark.className = 'mark';
+      position(mark, box);
+      fields.append(mark);
+      return mark;
     });
-  });
-  el('fields').replaceChildren(frag);
-  const count=fields.filter(f=>openIds.has(f.id)).length;
-  el('progress').textContent=fields.length?'表示 '+count+' / '+fields.length+' 問':'閲覧ページ';
-  el('toggleAll').disabled=!fields.length;
-  el('toggleAll').textContent=count===fields.length && fields.length?'すべて隠す':'すべて表示';
-  if(focusId) el('fields').querySelector('[data-id="'+focusId+'"][data-part="'+part+'"]')?.focus({preventScroll:true});
-}
-function flip(id,focus,part){
-  if(openIds.has(id))openIds.delete(id);else openIds.add(id);
-  paintFields(focus?id:null,part);persist();
-}
-el('fields').addEventListener('click',e=>{
-  const btn=e.target.closest('button');
-  if(btn){flip(btn.dataset.id,e.detail===0,btn.dataset.part);return;}
-  // On small screens, accept a near miss beside a tiny field.
-  if(!matchMedia('(pointer:coarse)').matches)return;
-  let nearest=null,best=8;
-  for(const b of el('fields').querySelectorAll('button')){
-    const r=b.getBoundingClientRect(),d=Math.hypot(Math.max(r.left-e.clientX,0,e.clientX-r.right),Math.max(r.top-e.clientY,0,e.clientY-r.bottom));
-    if(d<best){nearest=b;best=d;}
+    const answer = { field, buttons, marks, values };
+    answers.set(field.id, answer);
+    showAnswer(answer);
   }
-  if(nearest)flip(nearest.dataset.id,false);
+  paper.append(image, fields);
+
+  const link = document.createElement('a');
+  link.href = '#p' + n;
+  link.textContent = n;
+  link.setAttribute('aria-label', n + 'ページ ' + data.title);
+  pages.push({ paper, link });
+  pageLinks.append(link);
+  documentPages.append(paper);
+}
+
+function trackPage() {
+  const readingLine = document.querySelector('.toolbar').getBoundingClientRect().bottom + 8;
+  const n = pages.findIndex(({ paper }) => paper.getBoundingClientRect().bottom > readingLine) + 1;
+  if (!n || n === activePage) return;
+  pages[activePage - 1]?.link.removeAttribute('aria-current');
+  activePage = n;
+  const { link } = pages[n - 1];
+  link.setAttribute('aria-current', 'page');
+  const buttonBox = link.getBoundingClientRect();
+  const navBox = pageLinks.getBoundingClientRect();
+  if (buttonBox.left < navBox.left || buttonBox.right > navBox.right) {
+    pageLinks.scrollLeft += buttonBox.left - navBox.left - (navBox.width - buttonBox.width) / 2;
+  }
+  persist();
+}
+
+let scrollFrame = 0;
+window.addEventListener('scroll', () => {
+  if (scrollFrame) return;
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0;
+    trackPage();
+  });
+}, { passive: true });
+
+documentPages.addEventListener('click', event => {
+  const button = event.target.closest('button[data-answer]');
+  if (button) { flip(button.dataset.answer); return; }
+  const fields = event.target.closest('.fields');
+  if (!fields || !matchMedia('(pointer: coarse)').matches) return;
+  let nearest;
+  let distance = 8;
+  for (const candidate of fields.querySelectorAll('button')) {
+    const rect = candidate.getBoundingClientRect();
+    const dx = Math.max(rect.left - event.clientX, 0, event.clientX - rect.right);
+    const dy = Math.max(rect.top - event.clientY, 0, event.clientY - rect.bottom);
+    const gap = Math.hypot(dx, dy);
+    if (gap < distance) { nearest = candidate; distance = gap; }
+  }
+  if (nearest) flip(nearest.dataset.answer);
 });
-function scale(next,remember=true){
-  const scroller=el('scroller'),old=zoom,fromX=scroller.scrollLeft,fromY=scroller.scrollTop;
-  zoom=next;el('paper').style.width=zoom+'%';el('fit').textContent=zoom+'%';
-  el('minus').disabled=zoom===100;el('plus').disabled=zoom===300;
-  if(remember){scroller.scrollTo(fromX*zoom/old,fromY*zoom/old);persist();}
+
+toggleAll.addEventListener('click', () => {
+  const hide = openIds.size === answers.size;
+  openIds.clear();
+  for (const [id, answer] of answers) {
+    if (!hide) openIds.add(id);
+    showAnswer(answer);
+  }
+  updateToggle();
+  persist();
+});
+error.querySelector('button').addEventListener('click', () => location.reload());
+
+async function start() {
+  const response = await fetch('pages.json');
+  if (!response.ok) throw Error('Pages unavailable');
+  const data = await response.json();
+  data.forEach(buildPage);
+  for (const id of openIds) if (!answers.has(id)) openIds.delete(id);
+  toggleAll.disabled = !answers.size;
+  updateToggle();
+  const n = Number(location.hash.match(/^#p(\d+)$/)?.[1] || saved.page || 1);
+  if (n > 1) pages[n - 1]?.paper.scrollIntoView();
+  trackPage();
 }
-function navigate(n){
-  if(!Number.isInteger(n)||n<1||n>pages.length)return;
-  num=n;const p=pages[n-1], group=groups.find(g=>n>=g[1]&&n<=g[2]);
-  el('title').textContent=p.title;el('folio').textContent=p.label;el('chap').textContent=group[0];
-  el('position').textContent=pad(n);el('paperlabel').textContent=p.label+'　·　'+n+' / '+pages.length;
-  el('pageimg').src='pages/'+pad(n)+'.svg';el('pageimg').alt=p.label+'　'+p.title+'の原本紙面';
-  document.querySelectorAll('.navrow').forEach(b=>{if(Number(b.dataset.page)===n)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
-  el('prev').disabled=n===1;el('next').disabled=el('bottomNext').disabled=n===pages.length;
-  el('scroller').scrollTo(0,0);paintFields();persist();
-  history.replaceState(null,'','#p'+n);
-}
-el('toggleAll').onclick=()=>{
-  const fields=pages[num-1].fields, clear=fields.every(f=>openIds.has(f.id));
-  fields.forEach(f=>clear?openIds.delete(f.id):openIds.add(f.id));paintFields();persist();
-};
-el('prev').onclick=()=>navigate(num-1);el('next').onclick=()=>navigate(num+1);
-el('bottomNext').onclick=()=>{navigate(num+1);el('title').scrollIntoView({block:'start'});};
-el('plus').onclick=()=>scale(zoomSteps[zoomSteps.indexOf(zoom)+1]);
-el('minus').onclick=()=>scale(zoomSteps[zoomSteps.indexOf(zoom)-1]);el('fit').onclick=()=>scale(100);
-el('openNav').onclick=()=>menu(true);el('closeNav').onclick=el('shade').onclick=()=>menu(false);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('nav-open'))menu(false);});
-el('pageimg').onerror=()=>{el('error').hidden=false;};el('pageimg').onload=()=>{el('error').hidden=true;};
-fetch('pages.json').then(r=>{if(!r.ok)throw Error();return r.json();}).then(data=>{
-  pages=data;makeIndex();scale(zoom,false);
-  const target=Number(location.hash.match(/^#p(\d+)$/)?.[1] || saved.page || 1);
-  navigate(target>=1&&target<=pages.length?target:1);
-}).catch(()=>{el('error').hidden=false;});
+start().catch(() => { error.hidden = false; });
